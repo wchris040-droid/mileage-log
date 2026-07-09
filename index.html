@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Mileage Log</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#181A15">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mileage">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+html, body { margin:0; padding:0; background:#181A15; }
+
+:root{
+  --bg:#181A15;
+  --surface:#22241D;
+  --surface-2:#2B2E24;
+  --border:#3B3E32;
+  --text:#EEEAE0;
+  --text-dim:#9C9C8C;
+  --olive:#899969;
+  --olive-dim:#5E6A47;
+  --amber:#DDA53F;
+  --amber-dim:#B5842F;
+  --danger:#C25C3F;
+}
+
+*{box-sizing:border-box;}
+
+.mlog{
+  font-family:'Inter',system-ui,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  padding:0;
+  max-width:480px;
+  margin:0 auto;
+}
+
+.mlog-header{
+  padding:20px 20px 14px;
+  border-bottom:1px solid var(--border);
+}
+.mlog-eyebrow{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:11px;
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+  color:var(--olive);
+  margin:0 0 4px;
+}
+.mlog-title{
+  font-family:'Space Grotesk',sans-serif;
+  font-size:22px;
+  font-weight:700;
+  margin:0;
+  letter-spacing:-0.01em;
+}
+
+.mlog-body{ padding:18px 20px 100px; }
+
+/* Trip leg (start / end capture) */
+.trip-leg{ margin-bottom:12px; }
+.leg-label{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:10px;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+  color:var(--text-dim);
+  margin:0 0 6px;
+}
+.capture-btn{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  background:var(--amber);
+  color:#1B1804;
+  border:none;
+  border-radius:10px;
+  padding:14px;
+  font-family:'Space Grotesk',sans-serif;
+  font-weight:700;
+  font-size:15px;
+  cursor:pointer;
+  transition:background .15s ease;
+}
+.capture-btn.secondary{ background:var(--olive); }
+.capture-btn:active{ filter:brightness(0.9); }
+.capture-btn svg{ width:18px; height:18px; flex-shrink:0; }
+.camera-input{ display:none; }
+
+.thumb-row{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  margin-top:8px;
+}
+.thumb{
+  width:44px;height:44px;border-radius:8px;object-fit:cover;
+  border:1px solid var(--border);
+}
+.thumb-status{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:12px;
+  color:var(--text-dim);
+}
+.thumb-status.reading{ color:var(--amber); }
+.thumb-status.err{ color:var(--danger); }
+
+/* Odometer readouts */
+.readout-pair{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  margin-bottom:10px;
+}
+.readout{
+  background:#0F100D;
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:14px 12px;
+  position:relative;
+  overflow:hidden;
+}
+.readout::before{
+  content:'';
+  position:absolute; inset:0;
+  background:linear-gradient(180deg, rgba(137,153,105,0.06), transparent 40%);
+  pointer-events:none;
+}
+.readout-label{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:10px;
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+  color:var(--text-dim);
+  margin:0 0 6px;
+}
+.readout-digits{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:26px;
+  font-weight:600;
+  letter-spacing:0.02em;
+  color:var(--olive);
+  text-shadow:0 0 14px rgba(137,153,105,0.3);
+  display:flex;
+  align-items:baseline;
+  min-height:32px;
+}
+.readout-digits input{
+  background:transparent;
+  border:none;
+  color:inherit;
+  font:inherit;
+  width:100%;
+  outline:none;
+}
+.readout.placeholder .readout-digits{ color:var(--border); }
+
+.miles-preview{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:12px 14px;
+  margin-bottom:16px;
+}
+.miles-preview-label{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:11px;
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  color:var(--text-dim);
+}
+.miles-preview-value{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:18px;
+  font-weight:700;
+  color:var(--amber);
+}
+.miles-preview-value.warn{ color:var(--danger); }
+
+.field-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  margin-bottom:14px;
+}
+.field{ display:flex; flex-direction:column; gap:6px; }
+.field label{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:10px;
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  color:var(--text-dim);
+}
+.field input, .field select{
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  color:var(--text);
+  border-radius:8px;
+  padding:10px 10px;
+  font-family:'Inter',sans-serif;
+  font-size:14px;
+}
+.field select{ appearance:none; }
+
+.add-code-row{
+  display:flex; gap:8px; margin-top:6px;
+}
+.add-code-row input{ flex:1; }
+.mini-btn{
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  color:var(--text-dim);
+  border-radius:8px;
+  padding:0 12px;
+  font-family:'IBM Plex Mono',monospace;
+  font-size:12px;
+  cursor:pointer;
+}
+
+.log-btn{
+  width:100%;
+  background:var(--olive);
+  color:#12140E;
+  border:none;
+  border-radius:10px;
+  padding:14px;
+  font-family:'Space Grotesk',sans-serif;
+  font-weight:700;
+  font-size:15px;
+  cursor:pointer;
+  margin-bottom:24px;
+}
+.log-btn:disabled{ background:var(--surface-2); color:var(--text-dim); cursor:not-allowed; }
+.log-btn:active:not(:disabled){ background:var(--olive-dim); }
+
+.section-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  margin-bottom:10px;
+}
+.section-title{
+  font-family:'Space Grotesk',sans-serif;
+  font-size:14px;
+  font-weight:600;
+  color:var(--text-dim);
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+}
+.total-pill{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:13px;
+  color:var(--amber);
+}
+
+.entry{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:12px 0;
+  border-bottom:1px solid var(--border);
+}
+.entry-left{ display:flex; flex-direction:column; gap:2px; }
+.entry-date{ font-size:13px; color:var(--text); }
+.entry-code{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:11px;
+  color:var(--olive);
+  text-transform:uppercase;
+}
+.entry-odo{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:11px;
+  color:var(--text-dim);
+}
+.entry-right{ display:flex; align-items:center; gap:12px; }
+.entry-miles{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:16px;
+  font-weight:600;
+}
+.entry-del{
+  background:none; border:none; color:var(--text-dim);
+  cursor:pointer; font-size:16px; padding:4px;
+}
+.entry-del:hover{ color:var(--danger); }
+
+.empty-state{
+  color:var(--text-dim);
+  font-size:13px;
+  padding:20px 0;
+  text-align:center;
+  border:1px dashed var(--border);
+  border-radius:10px;
+}
+
+.export-btn{
+  width:100%;
+  background:none;
+  border:1px solid var(--border);
+  color:var(--text-dim);
+  border-radius:10px;
+  padding:12px;
+  font-family:'IBM Plex Mono',monospace;
+  font-size:12px;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  cursor:pointer;
+  margin-top:16px;
+}
+.export-btn:active{ border-color:var(--olive); color:var(--olive); }
+.export-hint{
+  font-size:11px;
+  color:var(--text-dim);
+  text-align:center;
+  margin-top:8px;
+  line-height:1.5;
+}
+
+.toast{
+  position:fixed;
+  bottom:16px; left:50%; transform:translateX(-50%);
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  color:var(--text);
+  padding:10px 16px;
+  border-radius:8px;
+  font-size:13px;
+  font-family:'Inter',sans-serif;
+  opacity:0;
+  transition:opacity .2s ease;
+  pointer-events:none;
+  max-width:90%;
+  text-align:center;
+}
+.toast.show{ opacity:1; }
+</style>
+</head>
+<body>
+
+<div class="mlog">
+  <div class="mlog-header">
+    <p class="mlog-eyebrow">Work Vehicle · Field Log</p>
+    <h1 class="mlog-title">Mileage Log</h1>
+  </div>
+
+  <div class="mlog-body">
+
+    <div class="trip-leg">
+      <p class="leg-label">Trip Start</p>
+      <button class="capture-btn" id="captureStartBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        Add Start Mileage Photo
+      </button>
+      <input type="file" class="camera-input" id="cameraStartInput" accept="image/*">
+      <div class="thumb-row" id="thumbRowStart" style="display:none;">
+        <img class="thumb" id="thumbImgStart" />
+        <span class="thumb-status" id="thumbStatusStart">Reading odometer...</span>
+      </div>
+    </div>
+
+    <div class="trip-leg">
+      <p class="leg-label">Trip End</p>
+      <button class="capture-btn secondary" id="captureEndBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        Add End Mileage Photo
+      </button>
+      <input type="file" class="camera-input" id="cameraEndInput" accept="image/*">
+      <div class="thumb-row" id="thumbRowEnd" style="display:none;">
+        <img class="thumb" id="thumbImgEnd" />
+        <span class="thumb-status" id="thumbStatusEnd">Reading odometer...</span>
+      </div>
+    </div>
+
+    <div class="readout-pair">
+      <div class="readout placeholder" id="readoutStartBox">
+        <p class="readout-label">Start</p>
+        <div class="readout-digits"><input type="text" id="startMileageInput" inputmode="numeric" placeholder="000000" /></div>
+      </div>
+      <div class="readout placeholder" id="readoutEndBox">
+        <p class="readout-label">End</p>
+        <div class="readout-digits"><input type="text" id="endMileageInput" inputmode="numeric" placeholder="000000" /></div>
+      </div>
+    </div>
+
+    <div class="miles-preview">
+      <span class="miles-preview-label">Trip Miles</span>
+      <span class="miles-preview-value" id="milesPreviewValue">--</span>
+    </div>
+
+    <div class="field-grid">
+      <div class="field">
+        <label>Date</label>
+        <input type="date" id="dateInput" />
+      </div>
+      <div class="field">
+        <label>Time Code</label>
+        <select id="codeSelect"></select>
+      </div>
+    </div>
+    <div class="add-code-row">
+      <input type="text" id="newCodeInput" placeholder="Add new code..." />
+      <button class="mini-btn" id="addCodeBtn">+ Add</button>
+    </div>
+
+    <div style="height:14px;"></div>
+
+    <button class="log-btn" id="logBtn">Add Trip to Log</button>
+
+    <div class="section-head">
+      <span class="section-title">Recent Trips</span>
+      <span class="total-pill" id="totalPill">0 mi</span>
+    </div>
+    <div id="entriesList"></div>
+
+    <button class="export-btn" id="exportBtn">Export to Excel (.xlsx)</button>
+    <p class="export-hint">Groups mileage by time code within each day, plus a full trip-by-trip detail sheet.</p>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(function(){
+  // ---- Environment config -------------------------------------------------
+  // Artifact build: STANDALONE=false uses window.storage + calls Claude directly.
+  // Standalone build: STANDALONE=true uses localStorage + calls your own worker.
+  const STANDALONE = true;
+  const OCR_ENDPOINT = "PASTE_YOUR_WORKER_URL_HERE"; // only used when STANDALONE=true
+
+  const $ = (id) => document.getElementById(id);
+  const dateInput = $('dateInput');
+  const codeSelect = $('codeSelect');
+  const newCodeInput = $('newCodeInput');
+  const addCodeBtn = $('addCodeBtn');
+  const startMileageInput = $('startMileageInput');
+  const endMileageInput = $('endMileageInput');
+  const readoutStartBox = $('readoutStartBox');
+  const readoutEndBox = $('readoutEndBox');
+  const milesPreviewValue = $('milesPreviewValue');
+  const captureStartBtn = $('captureStartBtn');
+  const captureEndBtn = $('captureEndBtn');
+  const cameraStartInput = $('cameraStartInput');
+  const cameraEndInput = $('cameraEndInput');
+  const thumbRowStart = $('thumbRowStart');
+  const thumbRowEnd = $('thumbRowEnd');
+  const thumbImgStart = $('thumbImgStart');
+  const thumbImgEnd = $('thumbImgEnd');
+  const thumbStatusStart = $('thumbStatusStart');
+  const thumbStatusEnd = $('thumbStatusEnd');
+  const logBtn = $('logBtn');
+  const entriesList = $('entriesList');
+  const totalPill = $('totalPill');
+  const exportBtn = $('exportBtn');
+  const toastEl = $('toast');
+
+  const CODES_KEY = 'mileage-time-codes';
+  const ENTRIES_KEY = 'mileage-entries';
+  const DEFAULT_CODES = ['FIELD','TRAVEL','OFFICE'];
+
+  let codes = DEFAULT_CODES.slice();
+  let entries = []; // { id, date, code, startMileage, endMileage, miles }
+
+  function showToast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    setTimeout(()=> toastEl.classList.remove('show'), 2400);
+  }
+
+  function todayStr(){
+    const d = new Date();
+    return d.toISOString().slice(0,10);
+  }
+  dateInput.value = todayStr();
+
+  // ---- Storage abstraction -------------------------------------------------
+  async function dbGet(key){
+    if(STANDALONE){
+      try{ const v = localStorage.getItem(key); return v !== null ? { value: v } : null; }
+      catch(e){ return null; }
+    } else {
+      try{ return await window.storage.get(key, false); } catch(e){ return null; }
+    }
+  }
+  async function dbSet(key, value){
+    if(STANDALONE){
+      try{ localStorage.setItem(key, value); return true; } catch(e){ return null; }
+    } else {
+      try{ return await window.storage.set(key, value, false); } catch(e){ return null; }
+    }
+  }
+
+  function renderCodes(){
+    codeSelect.innerHTML = '';
+    codes.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c; opt.textContent = c;
+      codeSelect.appendChild(opt);
+    });
+  }
+
+  function renderEntries(){
+    if(entries.length === 0){
+      entriesList.innerHTML = '<div class="empty-state">No trips yet — log your first one above.</div>';
+    } else {
+      const sorted = entries.slice().sort((a,b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+      entriesList.innerHTML = sorted.map(e => `
+        <div class="entry" data-id="${e.id}">
+          <div class="entry-left">
+            <span class="entry-date">${e.date}</span>
+            <span class="entry-code">${e.code}</span>
+            <span class="entry-odo">${e.startMileage.toLocaleString()} → ${e.endMileage.toLocaleString()}</span>
+          </div>
+          <div class="entry-right">
+            <span class="entry-miles">${e.miles.toLocaleString()} mi</span>
+            <button class="entry-del" data-id="${e.id}">✕</button>
+          </div>
+        </div>
+      `).join('');
+      entriesList.querySelectorAll('.entry-del').forEach(btn => {
+        btn.addEventListener('click', () => deleteEntry(btn.dataset.id));
+      });
+    }
+    const total = entries.reduce((s,e)=> s + (Number(e.miles)||0), 0);
+    totalPill.textContent = total.toLocaleString() + ' mi';
+  }
+
+  async function loadData(){
+    const c = await dbGet(CODES_KEY);
+    if(c && c.value){ try{ codes = JSON.parse(c.value); }catch(e){} }
+    else { await dbSet(CODES_KEY, JSON.stringify(codes)); }
+
+    const en = await dbGet(ENTRIES_KEY);
+    if(en && en.value){ try{ entries = JSON.parse(en.value); }catch(e){ entries = []; } }
+
+    renderCodes();
+    renderEntries();
+  }
+
+  async function saveCodes(){
+    const ok = await dbSet(CODES_KEY, JSON.stringify(codes));
+    if(!ok) showToast('Could not save code list');
+  }
+  async function saveEntries(){
+    const ok = await dbSet(ENTRIES_KEY, JSON.stringify(entries));
+    if(!ok) showToast('Could not save entry');
+  }
+
+  addCodeBtn.addEventListener('click', async () => {
+    const val = newCodeInput.value.trim().toUpperCase();
+    if(!val) return;
+    if(codes.includes(val)){ showToast('Code already exists'); return; }
+    codes.push(val);
+    renderCodes();
+    codeSelect.value = val;
+    newCodeInput.value = '';
+    await saveCodes();
+    showToast('Code added: ' + val);
+  });
+
+  function fileToBase64(file){
+    return new Promise((resolve,reject)=>{
+      const r = new FileReader();
+      r.onload = () => resolve(r.result.split(',')[1]);
+      r.onerror = () => reject(new Error('read failed'));
+      r.readAsDataURL(file);
+    });
+  }
+
+  const OCR_PROMPT = 'This is a photo of a car dashboard or odometer. Find the main total odometer reading (not the trip meter, not the speedometer, not RPM/fuel gauges). Respond with ONLY raw JSON, no markdown fences, no extra text, in exactly this shape: {"mileage": <integer or null>, "found": <true or false>}. If you cannot clearly read a total odometer number, return {"mileage": null, "found": false}.';
+
+  async function callOCR(base64, mediaType){
+    if(STANDALONE){
+      const res = await fetch(OCR_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64, mediaType })
+      });
+      return res.json();
+    } else {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 300,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+              { type: 'text', text: OCR_PROMPT }
+            ]
+          }]
+        })
+      });
+      return res.json();
+    }
+  }
+
+  function updateMilesPreview(){
+    const s = parseInt(startMileageInput.value, 10);
+    const e = parseInt(endMileageInput.value, 10);
+    if(!isNaN(s) && !isNaN(e)){
+      const diff = e - s;
+      if(diff < 0){
+        milesPreviewValue.textContent = 'End < Start';
+        milesPreviewValue.classList.add('warn');
+      } else {
+        milesPreviewValue.textContent = diff.toLocaleString() + ' mi';
+        milesPreviewValue.classList.remove('warn');
+      }
+    } else {
+      milesPreviewValue.textContent = '--';
+      milesPreviewValue.classList.remove('warn');
+    }
+  }
+  startMileageInput.addEventListener('input', updateMilesPreview);
+  endMileageInput.addEventListener('input', updateMilesPreview);
+
+  async function handleCapture(file, els){
+    const { thumbRow, thumbImg, thumbStatus, readoutBox, mileageInput } = els;
+    thumbRow.style.display = 'flex';
+    thumbImg.src = URL.createObjectURL(file);
+    thumbStatus.textContent = 'Reading odometer...';
+    thumbStatus.className = 'thumb-status reading';
+    readoutBox.classList.remove('placeholder');
+    mileageInput.value = '';
+
+    if(STANDALONE && OCR_ENDPOINT === 'PASTE_YOUR_WORKER_URL_HERE'){
+      thumbStatus.textContent = 'Worker URL not set up yet — enter manually';
+      thumbStatus.className = 'thumb-status err';
+      return;
+    }
+
+    try{
+      const base64 = await fileToBase64(file);
+      const mediaType = file.type || 'image/jpeg';
+      const data = await callOCR(base64, mediaType);
+      const textBlock = (data.content || []).find(b => b.type === 'text');
+      const raw = textBlock ? textBlock.text : '';
+      const clean = raw.replace(/```json|```/g, '').trim();
+      let parsed;
+      try{ parsed = JSON.parse(clean); } catch(e){ parsed = { found:false }; }
+
+      if(parsed.found && parsed.mileage){
+        mileageInput.value = parsed.mileage;
+        thumbStatus.textContent = 'Read: ' + Number(parsed.mileage).toLocaleString() + ' mi — check it';
+        thumbStatus.className = 'thumb-status';
+      } else {
+        thumbStatus.textContent = 'Could not read clearly — enter manually';
+        thumbStatus.className = 'thumb-status err';
+      }
+    } catch(err){
+      console.error(err);
+      thumbStatus.textContent = 'Scan failed — enter manually';
+      thumbStatus.className = 'thumb-status err';
+    }
+    updateMilesPreview();
+  }
+
+  captureStartBtn.addEventListener('click', () => cameraStartInput.click());
+  captureEndBtn.addEventListener('click', () => cameraEndInput.click());
+
+  cameraStartInput.addEventListener('change', () => {
+    const file = cameraStartInput.files[0];
+    if(!file) return;
+    handleCapture(file, {
+      thumbRow: thumbRowStart, thumbImg: thumbImgStart, thumbStatus: thumbStatusStart,
+      readoutBox: readoutStartBox, mileageInput: startMileageInput
+    });
+  });
+  cameraEndInput.addEventListener('change', () => {
+    const file = cameraEndInput.files[0];
+    if(!file) return;
+    handleCapture(file, {
+      thumbRow: thumbRowEnd, thumbImg: thumbImgEnd, thumbStatus: thumbStatusEnd,
+      readoutBox: readoutEndBox, mileageInput: endMileageInput
+    });
+  });
+
+  function genId(){ return 'e' + Date.now() + Math.floor(Math.random()*1000); }
+
+  logBtn.addEventListener('click', async () => {
+    const startMileage = parseInt(startMileageInput.value, 10);
+    const endMileage = parseInt(endMileageInput.value, 10);
+    const date = dateInput.value;
+    const code = codeSelect.value;
+
+    if(!date){ showToast('Pick a date'); return; }
+    if(!code){ showToast('Pick a time code'); return; }
+    if(isNaN(startMileage)){ showToast('Enter a start mileage'); return; }
+    if(isNaN(endMileage)){ showToast('Enter an end mileage'); return; }
+    if(endMileage < startMileage){ showToast('End mileage is less than start'); return; }
+
+    logBtn.disabled = true;
+    entries.push({
+      id: genId(), date, code,
+      startMileage, endMileage,
+      miles: endMileage - startMileage
+    });
+    await saveEntries();
+    renderEntries();
+    logBtn.disabled = false;
+
+    startMileageInput.value = '';
+    endMileageInput.value = '';
+    readoutStartBox.classList.add('placeholder');
+    readoutEndBox.classList.add('placeholder');
+    thumbRowStart.style.display = 'none';
+    thumbRowEnd.style.display = 'none';
+    updateMilesPreview();
+    showToast('Logged ' + (endMileage - startMileage).toLocaleString() + ' mi for ' + code);
+  });
+
+  async function deleteEntry(id){
+    entries = entries.filter(e => e.id !== id);
+    await saveEntries();
+    renderEntries();
+  }
+
+  // ---- Export: group by day, then by time code within that day -----------
+  function buildDailySummaryRows(){
+    const byDate = {};
+    entries.forEach(e => {
+      if(!byDate[e.date]) byDate[e.date] = {};
+      byDate[e.date][e.code] = (byDate[e.date][e.code] || 0) + e.miles;
+    });
+    const dates = Object.keys(byDate).sort();
+    const rows = [];
+    let grandTotal = 0;
+
+    dates.forEach(date => {
+      const codesForDay = byDate[date];
+      const codeNames = Object.keys(codesForDay).sort();
+      let dayTotal = 0;
+      codeNames.forEach(code => {
+        const miles = codesForDay[code];
+        dayTotal += miles;
+        rows.push({ Date: date, 'Time Code': code, Miles: miles });
+      });
+      rows.push({ Date: date, 'Time Code': 'DAY TOTAL', Miles: dayTotal });
+      rows.push({ Date: '', 'Time Code': '', Miles: '' });
+      grandTotal += dayTotal;
+    });
+
+    rows.push({ Date: '', 'Time Code': 'GRAND TOTAL', Miles: grandTotal });
+    return rows;
+  }
+
+  function buildTripDetailRows(){
+    return entries
+      .slice()
+      .sort((a,b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
+      .map(e => ({
+        Date: e.date,
+        'Time Code': e.code,
+        'Start Mileage': e.startMileage,
+        'End Mileage': e.endMileage,
+        Miles: e.miles
+      }));
+  }
+
+  exportBtn.addEventListener('click', () => {
+    if(entries.length === 0){ showToast('No trips to export'); return; }
+
+    const summaryRows = buildDailySummaryRows();
+    const detailRows = buildTripDetailRows();
+
+    const wb = XLSX.utils.book_new();
+
+    const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
+    wsSummary['!cols'] = [{wch:12},{wch:14},{wch:10}];
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Daily Summary');
+
+    const wsDetail = XLSX.utils.json_to_sheet(detailRows);
+    wsDetail['!cols'] = [{wch:12},{wch:14},{wch:14},{wch:14},{wch:10}];
+    XLSX.utils.book_append_sheet(wb, wsDetail, 'Trip Detail');
+
+    XLSX.writeFile(wb, 'Vehicle_Mileage_Log.xlsx');
+  });
+
+  loadData();
+
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(()=>{});
+    });
+  }
+})();
+</script>
+</body>
+</html>
