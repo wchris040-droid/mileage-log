@@ -389,11 +389,11 @@ html, body { margin:0; padding:0; background:#181A15; }
     <div class="readout-pair">
       <div class="readout placeholder" id="readoutStartBox">
         <p class="readout-label">Start</p>
-        <div class="readout-digits"><input type="text" id="startMileageInput" inputmode="numeric" placeholder="000000" /></div>
+        <div class="readout-digits"><input type="text" id="startMileageInput" inputmode="decimal" placeholder="000000.0" /></div>
       </div>
       <div class="readout placeholder" id="readoutEndBox">
         <p class="readout-label">End</p>
-        <div class="readout-digits"><input type="text" id="endMileageInput" inputmode="numeric" placeholder="000000" /></div>
+        <div class="readout-digits"><input type="text" id="endMileageInput" inputmode="decimal" placeholder="000000.0" /></div>
       </div>
     </div>
 
@@ -539,7 +539,7 @@ html, body { margin:0; padding:0; background:#181A15; }
         btn.addEventListener('click', () => deleteEntry(btn.dataset.id));
       });
     }
-    const total = entries.reduce((s,e)=> s + (Number(e.miles)||0), 0);
+    const total = round1(entries.reduce((s,e)=> s + (Number(e.miles)||0), 0));
     totalPill.textContent = total.toLocaleString() + ' mi';
   }
 
@@ -621,7 +621,7 @@ html, body { margin:0; padding:0; background:#181A15; }
     });
   }
 
-  const OCR_PROMPT = 'This is a photo of a car dashboard or odometer. Find the main total odometer reading (not the trip meter, not the speedometer, not RPM/fuel gauges). Respond with ONLY raw JSON, no markdown fences, no extra text, in exactly this shape: {"mileage": <integer or null>, "found": <true or false>}. If you cannot clearly read a total odometer number, return {"mileage": null, "found": false}.';
+  const OCR_PROMPT = 'This is a photo of a car dashboard or odometer. Find the main total odometer reading (not the trip meter, not the speedometer, not RPM/fuel gauges). Many digital odometers show a decimal tenths digit (e.g. 20659.5) — include it exactly as shown, do not round or truncate it. Respond with ONLY raw JSON, no markdown fences, no extra text, in exactly this shape: {"mileage": <number or null>, "found": <true or false>}. If you cannot clearly read a total odometer number, return {"mileage": null, "found": false}.';
 
   async function callOCR(base64, mediaType){
     if(STANDALONE){
@@ -652,10 +652,10 @@ html, body { margin:0; padding:0; background:#181A15; }
   }
 
   function updateMilesPreview(){
-    const s = parseInt(startMileageInput.value, 10);
-    const e = parseInt(endMileageInput.value, 10);
+    const s = parseFloat(startMileageInput.value);
+    const e = parseFloat(endMileageInput.value);
     if(!isNaN(s) && !isNaN(e)){
-      const diff = e - s;
+      const diff = round1(e - s);
       if(diff < 0){
         milesPreviewValue.textContent = 'End < Start';
         milesPreviewValue.classList.add('warn');
@@ -716,7 +716,7 @@ html, body { margin:0; padding:0; background:#181A15; }
       let parsed;
       try{ parsed = JSON.parse(clean); } catch(e){ parsed = { found:false }; }
 
-      if(parsed.found && parsed.mileage){
+      if(parsed.found && typeof parsed.mileage === 'number'){
         mileageInput.value = parsed.mileage;
         thumbStatus.textContent = 'Read: ' + Number(parsed.mileage).toLocaleString() + ' mi — check it';
         thumbStatus.className = 'thumb-status';
@@ -752,11 +752,13 @@ html, body { margin:0; padding:0; background:#181A15; }
     });
   });
 
+  function round1(n){ return Math.round(n * 10) / 10; }
+
   function genId(){ return 'e' + Date.now() + Math.floor(Math.random()*1000); }
 
   logBtn.addEventListener('click', async () => {
-    const startMileage = parseInt(startMileageInput.value, 10);
-    const endMileage = parseInt(endMileageInput.value, 10);
+    const startMileage = parseFloat(startMileageInput.value);
+    const endMileage = parseFloat(endMileageInput.value);
     const date = dateInput.value;
     const code = codeSelect.value;
 
@@ -767,10 +769,11 @@ html, body { margin:0; padding:0; background:#181A15; }
     if(endMileage < startMileage){ showToast('End mileage is less than start'); return; }
 
     logBtn.disabled = true;
+    const tripMiles = round1(endMileage - startMileage);
     entries.push({
       id: genId(), date, code,
       startMileage, endMileage,
-      miles: endMileage - startMileage
+      miles: tripMiles
     });
     await saveEntries();
     renderEntries();
@@ -783,7 +786,7 @@ html, body { margin:0; padding:0; background:#181A15; }
     thumbRowStart.style.display = 'none';
     thumbRowEnd.style.display = 'none';
     updateMilesPreview();
-    showToast('Logged ' + (endMileage - startMileage).toLocaleString() + ' mi for ' + code);
+    showToast('Logged ' + tripMiles.toLocaleString() + ' mi for ' + code);
   });
 
   async function deleteEntry(id){
@@ -797,7 +800,7 @@ html, body { margin:0; padding:0; background:#181A15; }
     const byDate = {};
     entries.forEach(e => {
       if(!byDate[e.date]) byDate[e.date] = {};
-      byDate[e.date][e.code] = (byDate[e.date][e.code] || 0) + e.miles;
+      byDate[e.date][e.code] = round1((byDate[e.date][e.code] || 0) + e.miles);
     });
     const dates = Object.keys(byDate).sort();
     const rows = [];
@@ -809,12 +812,12 @@ html, body { margin:0; padding:0; background:#181A15; }
       let dayTotal = 0;
       codeNames.forEach(code => {
         const miles = codesForDay[code];
-        dayTotal += miles;
+        dayTotal = round1(dayTotal + miles);
         rows.push({ Date: date, 'Time Code': code, Miles: miles });
       });
       rows.push({ Date: date, 'Time Code': 'DAY TOTAL', Miles: dayTotal });
       rows.push({ Date: '', 'Time Code': '', Miles: '' });
-      grandTotal += dayTotal;
+      grandTotal = round1(grandTotal + dayTotal);
     });
 
     rows.push({ Date: '', 'Time Code': 'GRAND TOTAL', Miles: grandTotal });
