@@ -621,7 +621,7 @@ html, body { margin:0; padding:0; background:#181A15; }
     });
   }
 
-  const OCR_PROMPT = 'This is a photo of a car dashboard or odometer. Find the main total odometer reading (not the trip meter, not the speedometer, not RPM/fuel gauges). Many digital odometers show a decimal tenths digit (e.g. 20659.5) — include it exactly as shown, do not round or truncate it. Respond with ONLY raw JSON, no markdown fences, no extra text, in exactly this shape: {"mileage": <number or null>, "found": <true or false>}. If you cannot clearly read a total odometer number, return {"mileage": null, "found": false}.';
+  const OCR_PROMPT = 'This is a photo of a car dashboard or odometer. It may be a dim, low-contrast "screensaver" style display, or the full instrument cluster — look carefully at faint white text on dark backgrounds. Find the main total odometer reading (not the trip meter, not the speedometer, not RPM/fuel gauges). Digital odometers usually show one decimal (tenths) digit (e.g. 20659.5 or 20669.0) — read every digit precisely, including the decimal, do not round or guess. Respond with ONLY raw JSON, no markdown fences, no extra text, in exactly this shape: {"mileage": <number or null>, "found": <true or false>}. If you cannot clearly read a total odometer number, return {"mileage": null, "found": false}.';
 
   async function callOCR(base64, mediaType){
     if(STANDALONE){
@@ -689,7 +689,7 @@ html, body { margin:0; padding:0; background:#181A15; }
     try{
       let base64, mediaType;
       try{
-        base64 = await resizeImageFile(file, 1200, 0.8);
+        base64 = await resizeImageFile(file, 1600, 0.92);
         mediaType = 'image/jpeg';
       } catch(resizeErr){
         console.warn('Resize failed, falling back to original photo', resizeErr);
